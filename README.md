@@ -1,3 +1,6 @@
+# minGPT-tuned
+
+This a tuned minGPT with more tricks and tweaks, while preserving the simplicity of the original project.
 
 # minGPT
 
