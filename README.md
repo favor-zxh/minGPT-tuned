@@ -30,7 +30,7 @@ v = self.value(x).view(B, T, self.n_head, C // self.n_head).transpose(1, 2)
 
 Time-mixing is a strange-looking operation designed by me (after pondering on how self-attention works).
 
-Time-mixing enables more interesting local-attention effects, and makes the model directly capable of learning one essential aspect of human language: if we see "AX" and then we see "A", we are more likely to expect an "X" after "A" (in the Bayesian sense).
+Time-mixing enables more interesting local-attention effects, and makes the model directly capable of learning one essential aspect of human language: if we saw "AX" and then we see "A", we are more likely to expect an "X" after "A" (in the Bayesian sense).
 
 p.s. you can try interweaving time-mixing channels in different layers.
 
