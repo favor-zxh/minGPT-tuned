@@ -2,11 +2,51 @@
 
 This a tuned minGPT with more tricks and tweaks, while preserving the simplicity of the original project.
 
-## 1."Time-weighting" (there might be similar ideas in other papers)
+## Performance
+
+Data: https://github.com/karpathy/char-rnn/blob/master/data/tinyshakespeare/input.txt
+
+Model: block_size = 128, n_layer=3, n_head=8, n_embd=512 [we use a smaller model to test its capacity]
+
+Trainer: max_epochs=150, batch_size=256, learning_rate=6e-4, lr_decay=True, warmup_tokens=512 * 20, final_tokens=150 * len(train_dataset) * block_size
+
+minGPT-tuned:
+```
+number of parameters: 9.983488e+06
+epoch 1 iter 33: train loss 2.61996. lr 5.999354e-04:  [00:08<00:00,  4.19it/s]
+epoch 2 iter 33: train loss 2.22801. lr 5.997392e-04:  [00:07<00:00,  4.35it/s]
+epoch 3 iter 33: train loss 2.06643. lr 5.994116e-04:  [00:07<00:00,  4.36it/s]
+......
+epoch 50 iter 33: train loss 1.00424. lr 4.500336e-04:  [00:07<00:00,  4.31it/s]
+......
+epoch 100 iter 33: train loss 0.71006. lr 1.500168e-04:  [00:07<00:00,  4.31it/s]
+......
+epoch 148 iter 33: train loss 0.60897. lr 6.000000e-05:  [00:07<00:00,  4.32it/s]
+epoch 149 iter 33: train loss 0.61404. lr 6.000000e-05:  [00:07<00:00,  4.31it/s]
+epoch 150 iter 33: train loss 0.60880. lr 6.000000e-05:  [00:07<00:00,  4.32it/s]
+```
+
+minGPT:
+```
+number of parameters: 9.590272e+06
+epoch 1 iter 33: train loss 2.64701. lr 5.999354e-04:  [00:07<00:00,  4.39it/s]
+epoch 2 iter 33: train loss 2.49893. lr 5.997392e-04:  [00:07<00:00,  4.62it/s]
+epoch 3 iter 33: train loss 2.43154. lr 5.994116e-04:  [00:07<00:00,  4.60it/s]
+......
+epoch 50 iter 33: train loss 1.08477. lr 4.500336e-04:  [00:07<00:00,  4.55it/s]
+......
+epoch 100 iter 33: train loss 0.80659. lr 1.500168e-04:  [00:07<00:00,  4.57it/s]
+......
+epoch 148 iter 33: train loss 0.67977. lr 6.000000e-05:  [00:07<00:00,  4.57it/s]
+epoch 149 iter 33: train loss 0.69573. lr 6.000000e-05:  [00:07<00:00,  4.57it/s]
+epoch 150 iter 33: train loss 0.68462. lr 6.000000e-05:  [00:07<00:00,  4.51it/s]
+```
+
+## Trick 1 : Time-weighting (there might be similar ideas in other papers)
 
 ```python
 self.time_weighting = nn.Parameter(torch.ones(self.n_head, config.window_len, config.window_len))
-...
+......
 att = F.softmax(att, dim=-1)
 att = att * self.time_weighting[:,:T,:T] # this is "time-weighting"
 att = self.attn_drop(att)
@@ -20,7 +60,8 @@ p.s. there might be a closed-form solution for optimal time-weighting.
 
 ![time-weighting](time-weighting.jpg)
 
-## 2. "Time-mixing" (this might be a new idea first shown here)
+## Trick 2 : Time-mixing (this might be a new idea first shown here)
+
 ```python
 self.time_shift = nn.ZeroPad2d((0,0,1,0))
 ......
@@ -32,18 +73,14 @@ v = self.value(x).view(B, T, self.n_head, C // self.n_head).transpose(1, 2)
 
 Time-mixing is a strange-looking operation designed by me (after pondering on how self-attention works).
 
-Time-mixing enables more interesting local-attention effects, and makes the model directly capable of learning one essential aspect of human language: if we saw "AX" and then we see "A", we are more likely to expect an "X" after "A" (in the Bayesian sense).
+Time-mixing enables more interesting local-attention effects, and makes the model directly capable of learning an essential aspect of human language: if we saw "AX" and then we see "A", we are more likely to expect an "X" after "A" (in the Bayesian sense).
 
 p.s. you can try interweaving time-mixing channels in different layers.
 
-## 3. Result
-
-With time-weighting and time-mixing, the new layer learns faster and better. One might say 1 new layer equals ~1.2 old layers.
-
-## 4. Troubleshooting
+## Troubleshooting
 
 - Reduce batch_size if you encounter out-of-video-memory. 
-- Set num_workers to 0 if you are using Windows.
+- Set num_workers to 0 if you encounter pipe errors.
 - Remember to change final_tokens when you change max_epochs.
 
 ---
