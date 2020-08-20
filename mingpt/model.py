@@ -65,9 +65,8 @@ class CausalSelfAttention(nn.Module):
         B, T, C = x.size()
 
         # time-mixing
-        x_cut = C // 2 - C // (2 * self.n_head) # extra mixing within one of the heads
-        x = torch.cat([self.time_shift(x)[:,:T,:x_cut], x[:,:T,x_cut:]], dim=2)
-
+        x = torch.cat([self.time_shift(x)[:,:T,:C//2], x[:,:T,C//2:]], dim=2)
+        
         # calculate query, key, values for all heads in batch and move head forward to be the batch dim
         k = self.key(x).view(B, T, self.n_head, C // self.n_head).transpose(1, 2) # (B, nh, T, hs)
         q = self.query(x).view(B, T, self.n_head, C // self.n_head).transpose(1, 2) # (B, nh, T, hs)
@@ -100,11 +99,10 @@ class Block(nn.Module):
             nn.Linear(4 * config.n_embd, config.n_embd),
             nn.Dropout(config.resid_pdrop),
         )
-        self.rezero = nn.Parameter(torch.zeros(1)) # ReZero factor
 
     def forward(self, x):
-        x = x + self.rezero * self.attn(self.ln1(x))
-        x = x + self.rezero * self.mlp(self.ln2(x))
+        x = x + self.attn(self.ln1(x))
+        x = x + self.mlp(self.ln2(x))
         return x
 
 class GPT(nn.Module):
@@ -130,7 +128,7 @@ class GPT(nn.Module):
 
     def _init_weights(self, module):
         if isinstance(module, (nn.Linear, nn.Embedding)):
-            nn.init.orthogonal_(module.weight, gain=1.0)
+            module.weight.data.normal_(mean=0.0, std=0.02)
             if isinstance(module, nn.Linear) and module.bias is not None:
                 module.bias.data.zero_()
         elif isinstance(module, nn.LayerNorm):
