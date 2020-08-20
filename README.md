@@ -18,6 +18,8 @@ Moreover, the self-attention effects shall be reduced for earlier tokens because
 
 p.s. there might be a closed-form solution for optimal time-weighting. 
 
+![time-weighting](time-weighting.jpg)
+
 ## 2. "Time-mixing" (this might be a new idea first shown here)
 ```python
 self.time_shift = nn.ZeroPad2d((0,0,1,0))
