@@ -2,6 +2,50 @@
 
 This a tuned minGPT with more tricks and tweaks, while preserving the simplicity of the original project.
 
+## 1."Time-weighting" (there might be similar ideas in other papers)
+
+```python
+self.time_weighting = nn.Parameter(torch.ones(self.n_head, config.window_len, config.window_len))
+...
+att = F.softmax(att, dim=-1)
+att = att * self.time_weighting[:,:T,:T] # this is "time-weighting"
+att = self.attn_drop(att)
+```
+
+Time-weighting works, because tokens from different distances shall have different impacts on the current token.
+
+Moreover, the self-attention effects shall be reduced for earlier tokens because they have shorter history-windows.
+
+p.s. there might be a closed-form solution for optimal time-weighting. 
+
+## 2. "Time-mixing" (this might be a new idea first shown here)
+```python
+self.time_shift = nn.ZeroPad2d((0,0,1,0))
+......
+x = torch.cat([self.time_shift(x)[:,:T,:C//2], x[:,:T,C//2:]], dim=2) # this is "time-mixing"
+q = self.query(x).view(B, T, self.n_head, C // self.n_head).transpose(1, 2)
+k = self.key(x).view(B, T, self.n_head, C // self.n_head).transpose(1, 2)
+v = self.value(x).view(B, T, self.n_head, C // self.n_head).transpose(1, 2)
+```
+
+Time-mixing is a strange-looking operation designed by me (after pondering on how self-attention works).
+
+Time-mixing enables more interesting local-attention effects, and makes the model directly capable of learning one essential aspect of human language: if we see "AX" and then we see "A", we are more likely to expect an "X" after "A" (in the Bayesian sense).
+
+p.s. you can try interweaving time-mixing channels in different layers.
+
+## 3. Result
+
+With time-weighting and time-mixing, the new layer learns faster and better. One might say 1 new layer equals ~1.2 old layers.
+
+## 4. Troubleshooting
+
+- Reduce batch_size if you encounter out-of-video-memory. 
+- Set num_workers to 0 if you are using Windows.
+- Remember to change final_tokens when you change max_epochs.
+
+---
+
 # minGPT
 
 ![mingpt](mingpt.jpg)
