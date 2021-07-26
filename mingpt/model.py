@@ -58,14 +58,13 @@ class CausalSelfAttention(nn.Module):
                                      .view(1, 1, config.block_size, config.block_size))
         self.n_head = config.n_head
 
-        self.time_weighting = nn.Parameter(torch.ones(self.n_head, config.block_size, config.block_size))
-        self.time_shift = nn.ZeroPad2d((0,0,1,0))
+        self.time_weight = nn.Parameter(torch.ones(self.n_head, config.block_size, config.block_size)) # TRICK: time-weight
+        self.time_shift = nn.ZeroPad2d((0,0,1,0)) # TRICK: time-mix
 
     def forward(self, x, layer_past=None):
         B, T, C = x.size()
 
-        # time-mixing
-        x = torch.cat([self.time_shift(x)[:,:T,:C//2], x[:,:T,C//2:]], dim=2)
+        x = torch.cat([self.time_shift(x)[:,:T,:C//2], x[:,:T,C//2:]], dim=2) # TRICK: time-mix
         
         # calculate query, key, values for all heads in batch and move head forward to be the batch dim
         k = self.key(x).view(B, T, self.n_head, C // self.n_head).transpose(1, 2) # (B, nh, T, hs)
@@ -76,7 +75,7 @@ class CausalSelfAttention(nn.Module):
         att = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(k.size(-1)))
         att = att.masked_fill(self.mask[:,:,:T,:T] == 0, float('-inf'))
         att = F.softmax(att, dim=-1)
-        att = att * self.time_weighting[:,:T,:T] # time-weighting
+        att = att * self.time_weight[:,:T,:T] # TRICK: time-weight
         att = self.attn_drop(att)
         y = att @ v # (B, nh, T, T) x (B, nh, T, hs) -> (B, nh, T, hs)
         y = y.transpose(1, 2).contiguous().view(B, T, C) # re-assemble all head outputs side by side
@@ -155,8 +154,8 @@ class GPT(nn.Module):
             for pn, p in m.named_parameters():
                 fpn = '%s.%s' % (mn, pn) if mn else pn # full param name
 
-                if pn.endswith('bias'):
-                    # all biases will not be decayed
+                if pn.endswith('bias') or ('time' in pn):
+                    # all biases will not be decayed. time-weight will not be decayed.
                     no_decay.add(fpn)
                 elif pn.endswith('weight') and isinstance(m, whitelist_weight_modules):
                     # weights of whitelist modules will be weight decayed
