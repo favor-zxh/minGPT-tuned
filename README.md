@@ -6,7 +6,7 @@ This a tuned minGPT with more tricks and tweaks, while preserving the simplicity
 
 Data: https://github.com/karpathy/char-rnn/blob/master/data/tinyshakespeare/input.txt
 
-Model: block_size = 128, n_layer=3, n_head=8, n_embd=512 [we use a smaller model to test its capacity]
+Model: block_size = 128, n_layer=3, n_head=8, n_embd=512
 
 Trainer: max_epochs=150, batch_size=256, learning_rate=6e-4, lr_decay=True, warmup_tokens=512 * 20, final_tokens=150 * len(train_dataset) * block_size
 
@@ -42,7 +42,7 @@ epoch 149 iter 33: train loss 0.69573. lr 6.000000e-05:  [00:07<00:00,  4.57it/s
 epoch 150 iter 33: train loss 0.68462. lr 6.000000e-05:  [00:07<00:00,  4.51it/s]
 ```
 
-## Trick 1 : Time-weighting (there might be similar ideas in other papers)
+## Trick 1 : Time-weighting
 
 ```python
 self.time_weighting = nn.Parameter(torch.ones(self.n_head, config.window_len, config.window_len))
@@ -52,15 +52,17 @@ att = att * self.time_weighting[:,:T,:T] # this is "time-weighting"
 att = self.attn_drop(att)
 ```
 
-Time-weighting works, because tokens from different distances shall have different impacts on the current token.
+Time-weighting works because tokens from different distances shall have different impacts on the current token.
 
 Moreover, the self-attention effects shall be reduced for earlier tokens because they have shorter history-windows.
+
+p.s. with time-weighting, you can even remove positional encoding in deep models.
 
 p.s. there might be a closed-form solution for optimal time-weighting. 
 
 ![time-weighting](time-weighting.jpg)
 
-## Trick 2 : Time-mixing (this might be a new idea first shown here)
+## Trick 2 : Time-mixing (might be a new idea?)
 
 ```python
 self.time_shift = nn.ZeroPad2d((0,0,1,0))
@@ -71,16 +73,14 @@ k = self.key(x).view(B, T, self.n_head, C // self.n_head).transpose(1, 2)
 v = self.value(x).view(B, T, self.n_head, C // self.n_head).transpose(1, 2)
 ```
 
-Time-mixing is a strange-looking operation designed by me (after pondering on how self-attention works).
-
-Time-mixing enables more interesting local-attention effects, and makes the model directly capable of learning an essential aspect of human language: if we saw "AX" and then we see "A", we are more likely to expect an "X" after "A" (in the Bayesian sense).
+Time-mixing enables more local-attention effects - the model will use both [this token] & [previous token] to generate q/k/v.
 
 p.s. you can try interweaving time-mixing channels in different layers.
 
 ## Troubleshooting
 
 - Reduce batch_size if you encounter out-of-video-memory. 
-- Set num_workers to 0 if you encounter pipe errors.
+- Set num_workers to 0 if you are using Windows.
 - Remember to change final_tokens when you change max_epochs.
 
 ---
