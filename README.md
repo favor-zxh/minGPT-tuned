@@ -10,6 +10,8 @@ Model: block_size = 128, n_layer=3, n_head=8, n_embd=512
 
 Trainer: max_epochs=150, batch_size=256, learning_rate=6e-4, lr_decay=True, warmup_tokens=512 * 20, final_tokens=150 * len(train_dataset) * block_size
 
+(this is using old play_char.ipynb with smaller epoch size)
+
 minGPT-tuned:
 ```
 number of parameters: 9.983488e+06
@@ -45,7 +47,7 @@ epoch 150 iter 33: train loss 0.68462. lr 6.000000e-05:  [00:07<00:00,  4.51it/s
 ## Trick 1 : Time-weighting
 
 ```python
-self.time_weighting = nn.Parameter(torch.ones(self.n_head, config.window_len, config.window_len))
+self.time_weighting = nn.Parameter(torch.ones(self.n_head, config.block_size, config.block_size))
 ......
 att = F.softmax(att, dim=-1)
 att = att * self.time_weighting[:,:T,:T] # this is "time-weighting"
@@ -54,7 +56,20 @@ att = self.attn_drop(att)
 
 Time-weighting works because tokens from different distances shall have different impacts on the current token.
 
-Moreover, the self-attention effects shall be reduced for earlier tokens because they have shorter history-windows.
+Moreover, the self-attention effects shall be changed for early tokens because they have shorter history-windows.
+
+p.s. because time_weighting is mostly a circulant matrix, use the following code to save more parameters:
+```python
+self.time_weight = nn.Parameter(torch.ones(self.n_head, config.block_size))
+self.time_bias = nn.Parameter(torch.ones(self.n_head, 1, config.block_size)) # dealing with early tokens 
+......
+ww = F.pad(self.time_weight, (0, TT))
+ww = torch.tile(ww, [TT])
+ww = ww[:, :-TT].reshape(-1, TT, 2 * TT - 1)
+ww = ww[:, :, TT-1:]
+ww = ww[:, :T, :T] # make a circulant matrix
+time_weighting = ww * self.time_bias[:, :, :T]
+```
 
 p.s. with time-weighting, you can even remove positional encoding in deep models.
 
