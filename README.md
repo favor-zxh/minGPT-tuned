@@ -2,6 +2,8 @@
 
 This a tuned minGPT with more tricks and tweaks, while preserving the simplicity of the original project.
 
+Check our RWKV language model for latest development: https://github.com/BlinkDL/RWKV-LM
+
 ## Performance
 
 Data: https://github.com/karpathy/char-rnn/blob/master/data/tinyshakespeare/input.txt
